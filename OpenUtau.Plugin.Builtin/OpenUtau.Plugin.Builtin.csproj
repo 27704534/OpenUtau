@@ -30,4 +30,9 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Data\pinyin_zh_to_ja.txt" />
+    <EmbeddedResource Include="Data\arpabet_to_pinyin_enhanced.txt" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,3 @@
+name=kua
+execute=kua_final_0.5.py
+shell=use
