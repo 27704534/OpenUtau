@@ -68,5 +68,5 @@ S:sa,sai,san,sang,sao,se,sen,seng,sha,shai,shan,shang,shao,she,shei,shen,sheng,s
 S:ta,tai,tan,tang,tao,te,tei,teng,ti,tian,tiao,tie,ting,tong,tou,tu,tuan,tui,tun,tuo
 S:wa,wai,wan,wang,wei,wen,weng,wo,wu
 S:xi,xia,xian,xiang,xiao,xie,xin,xing,xiong,xiu,xu,xuan,xue,xun
-S:ya,yan,yang,yao,ye,yi,yin,ying,yo,yong,you,yu,yuan,yue,yun
+S:ya,yan,yang,yao,ye,yi,yin,ying,yong,you,yu,yuan,yue,yun
 S:za,zai,zan,zang,zao,ze,zei,zen,zeng,zha,zhai,zhan,zhang,zhao,zhe,zhei,zhen,zheng,zhi,zhong,zhou,zhu,zhua,zhuai,zhuan,zhuang,zhui,zhun,zhuo,zi,zong,zou,zu,zuan,zui,zun,zuo

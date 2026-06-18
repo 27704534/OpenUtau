@@ -96,27 +96,24 @@ namespace OpenUtau.Plugin.Builtin {
                 line = line.Trim();
                 if (line.Length == 0 || line[0] == '#') continue;
 
-                var colon = line.IndexOf(':');
-                if (colon <= 0) continue;
-
-                string prefix = line.Substring(0, colon).Trim();  // e.g. "C", "V", or "S"
-                string key    = prefix.Length > 1 && prefix[1] == ':'
-                    ? prefix.Substring(2).Trim()    // "C:HH" → "HH"
-                    : "";
-                string body   = line.Substring(colon + 1).Trim();
-
-                if (key.Length == 0) continue;
-
-                if (prefix.StartsWith("C:")) {
-                    // Consonant → Chinese initials
-                    consonantInitials[key] = body.Split('|')
+                if (line.StartsWith("C:") || line.StartsWith("V:")) {
+                    // Format: C:ARPABET=initial1|initial2   or   V:ARPABET=final1|final2
+                    int eq = line.IndexOf('=');
+                    if (eq < 3) continue; // at least "C:X=" or "V:X="
+                    string key  = line.Substring(2, eq - 2).Trim();  // between "C:" / "V:" and "="
+                    string body = line.Substring(eq + 1).Trim();
+                    var values = body.Split('|')
                         .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
-                } else if (prefix.StartsWith("V:")) {
-                    // Vowel → Chinese finals
-                    vowelFinals[key] = body.Split('|')
-                        .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
-                } else if (prefix.StartsWith("S:")) {
-                    // Valid syllable list
+                    if (values.Length == 0) continue;
+
+                    if (line[0] == 'C')
+                        consonantInitials[key] = values;
+                    else
+                        vowelFinals[key] = values;
+
+                } else if (line.StartsWith("S:")) {
+                    // Format: S:syl1,syl2,...
+                    string body = line.Substring(2).Trim();
                     foreach (var syl in body.Split(',')) {
                         var s = syl.Trim();
                         if (s.Length > 0) validSyllables.Add(s);
