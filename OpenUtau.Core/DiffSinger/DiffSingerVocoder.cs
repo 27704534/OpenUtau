@@ -38,15 +38,6 @@ namespace OpenUtau.Core.DiffSinger {
                     true,
                     new string[] { Path.GetFileName(location), "https://github.com/xunmengshe/OpenUtau/wiki/Vocoders" });
             }
-            if (config.num_mel_bins < 1 || config.num_mel_bins > DsVocoderConfig.MaxMelBins) {
-                throw new MessageCustomizableException(
-                    $"Invalid num_mel_bins in \"{Path.Combine(location, "vocoder.yaml")}\"",
-                    $"<translate:errors.diffsinger.downloadvocoder>",
-                    new Exception(
-                        $"num_mel_bins must be between 1 and {DsVocoderConfig.MaxMelBins}, got {config.num_mel_bins}"),
-                    true,
-                    new string[] { Path.GetFileName(location), "https://github.com/xunmengshe/OpenUtau/wiki/Vocoders" });
-            }
             hash = XXH64.DigestOf(model);
             session = Onnx.getInferenceSession(model);
         }
