@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -46,6 +46,7 @@ namespace OpenUtau.Core.Neutrino {
         public byte[] avatarData;
         public ulong voicebankNameHash;
         public string singerVersion = string.Empty;
+        public string modelDir = string.Empty;
 
         public NeutrinoSinger(Voicebank voicebank) {
             this.voicebank = voicebank;
@@ -80,7 +81,18 @@ namespace OpenUtau.Core.Neutrino {
             subbanks.Clear();
 
             string infoPath = Path.Join(Location, "info.toml");
+            if (!File.Exists(infoPath)) {
+                var subDirs = Directory.GetDirectories(Location);
+                foreach (var subDir in subDirs) {
+                    var subInfoPath = Path.Join(subDir, "info.toml");
+                    if (File.Exists(subInfoPath)) {
+                        infoPath = subInfoPath;
+                        break;
+                    }
+                }
+            }
             if (File.Exists(infoPath)) {
+                modelDir = Path.GetDirectoryName(infoPath) ?? Location;
                 var info = TomlData.Load(infoPath);
                 // 优先级1：v3.x 格式 - 根级 version
                 info.TryGetValue("", "version", out object? rootVersion);

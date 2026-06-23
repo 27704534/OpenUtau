@@ -213,7 +213,7 @@ namespace OpenUtau.Core.Neutrino {
                     string bapPath = Path.Join(tmpPath, $"ne-{phrase.hash}.bap");
                     fullScorePath = Path.Join(tmpPath, $"ne-{hash}_full_score.lab");
                     monoTimingPath = Path.Join(tmpPath, $"ne-{hash}_mono_timing.lab");
-                    string modelDir = this.singer.Location + "/";
+                    string modelDir = this.singer.modelDir + "/";
                     int toneShift = phrase.phones[0] != null ? phrase.phones[0].toneShift : 0;
                     int numThreads = Preferences.Default.NumRenderThreads;
                     if (!File.Exists(fullScorePath) && !File.Exists(monoTimingPath)) {

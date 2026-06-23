@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using OpenUtau.Api;
 using OpenUtau.Core.Hts;
 using OpenUtau.Core.Ustx;
@@ -52,8 +53,8 @@ namespace OpenUtau.Core.Neutrino {
             //Load Dictionary
             try {
                 phoneDict.Clear();
-                LoadDict(Path.Join(basePath, "settings", "dic", confPath), singer.TextFileEncoding);
-                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), singer.TextFileEncoding);
+                LoadDict(Path.Join(basePath, "settings", "dic", confPath), Encoding.UTF8);
+                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), Encoding.UTF8);
                 // Lyrics often handled in OpenUtau
                 phoneDict.Add("R", new string[] { "pau" });
                 phoneDict.Add("-", new string[] { "pau" });
@@ -78,12 +79,15 @@ namespace OpenUtau.Core.Neutrino {
         protected IG2p LoadG2p() {
             var g2ps = new List<IG2p>();
             var builder = G2pDictionary.NewBuilder();
+            if (!phoneDict.ContainsKey("VOWELS") || !phoneDict.ContainsKey("SILENCES")) {
+                return new G2pFallbacks(g2ps.ToArray());
+            }
             vowels.AddRange(phoneDict["VOWELS"]);
-            breaks.AddRange(phoneDict["BREAK"]);
-            pauses.AddRange(phoneDict["PAUSES"]);
+            breaks.AddRange(phoneDict.GetValueOrDefault("BREAK", Array.Empty<string>()));
+            pauses.AddRange(phoneDict.GetValueOrDefault("PAUSES", Array.Empty<string>()));
             silences.AddRange(phoneDict["SILENCES"]);
-            consonants.AddRange(phoneDict["PHONEME_CL"]);
-            macronLyrics.AddRange(phoneDict["MACRON"]);
+            consonants.AddRange(phoneDict.GetValueOrDefault("PHONEME_CL", Array.Empty<string>()));
+            macronLyrics.AddRange(phoneDict.GetValueOrDefault("MACRON", Array.Empty<string>()));
             foreach (var dict in phoneDict.Values) {
                 foreach (var phoneme in dict) {
                     if (!consonants.Contains(phoneme) && !vowels.Contains(phoneme) &&
@@ -100,12 +104,12 @@ namespace OpenUtau.Core.Neutrino {
             }
             foreach (var entry in phoneDict.Keys) {
                 builder.AddEntry(entry, phoneDict[entry]);
-                foreach (var reduction in phoneDict["VOWEL_REDUCTION"]) {
+                foreach (var reduction in phoneDict.GetValueOrDefault("VOWEL_REDUCTION", Array.Empty<string>())) {
                     var phonemes = phoneDict[entry].Except(vowels).ToList();
                     if (phonemes.Count == 0) continue;
                     builder.AddEntry(entry + reduction, phonemes);
                 }
-                foreach (var macron in phoneDict["MACRON"]) {
+                foreach (var macron in phoneDict.GetValueOrDefault("MACRON", Array.Empty<string>())) {
                     var addPhonemes = phoneDict[entry].Where(x => vowels.Contains(x)).ToList();
                     if (addPhonemes.Count == 0) continue;
                     var phonemes = phoneDict[entry].ToList();
@@ -119,6 +123,9 @@ namespace OpenUtau.Core.Neutrino {
         }
 
         protected override Note[][] PhraseAdjustments(Note[][] phrese) {
+            if (g2p == null || !phoneDict.ContainsKey("MACRON")) {
+                return phrese;
+            }
             for (int i = 0; i < phrese.Length; i++) {
                 var lyric = phrese[i][0].lyric;
                 if (phoneDict["MACRON"].Contains(lyric) && (i > 0)) {
@@ -161,7 +168,7 @@ namespace OpenUtau.Core.Neutrino {
                 string f0Path = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.f0");
                 string melspecPath = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.melspec");
                 string wavPath = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.wav");
-                string modelDir = this.singer.Location + "/";
+                string modelDir = this.singer.modelDir + "/";
                 var attr = phrase[0][0].phonemeAttributes?.FirstOrDefault(attr => attr.index == 0) ?? default;
                 int toneShift = attr.toneShift;
                 int numThreads = Preferences.Default.NumRenderThreads;
