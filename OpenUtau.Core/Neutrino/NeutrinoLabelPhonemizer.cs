@@ -31,9 +31,21 @@ namespace OpenUtau.Core.Neutrino {
             tablePath = "japanese.utf_8.table";
             string basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO");
             if (!Directory.Exists(basePath)) {
-                if (this.singer.singerVersion.StartsWith("v2.7")) {
-                    basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
-                } else if (this.singer.singerVersion.StartsWith("v3") && !this.singer.singerVersion.StartsWith("v3.1")) {
+                // v2.x 通用
+                if (this.singer.singerVersion.StartsWith("v2")) {
+                    string v2Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v2");
+                    if (Directory.Exists(v2Path)) {
+                        basePath = v2Path;
+                    } else {
+                        // fallback：兼容旧的 v27 目录名
+                        string v27Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
+                        if (Directory.Exists(v27Path)) {
+                            basePath = v27Path;
+                        }
+                    }
+                }
+                // v3.x 通用
+                else if (this.singer.singerVersion.StartsWith("v3")) {
                     basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v3");
                 }
             }
@@ -154,11 +166,13 @@ namespace OpenUtau.Core.Neutrino {
                 int toneShift = attr.toneShift;
                 int numThreads = Preferences.Default.NumRenderThreads;
                 string ArgParam = string.Empty;
-                if (this.singer.singerVersion.StartsWith("v2.7")) {
+                if (this.singer.singerVersion.StartsWith("v2")) {
+                    // v2.x 通用（v2.3、v2.7 等）
                     ArgParam = $"{fullScorePath} {monoTimingPath} {f0Path} {melspecPath} {modelDir} -a -k {toneShift} -d 3 -n 1 -p {numThreads} -m -t";
-                } else if (this.singer.singerVersion.StartsWith("v3") && !this.singer.singerVersion.StartsWith("v3.1")) {
+                } else if (this.singer.singerVersion.StartsWith("v3")) {
+                    // v3.x 通用（v3.0、v3.1 等）
                     //TODO: -S support model
-                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{wavPath}\" \"{modelDir}\" --skip-f0 --skip-melspec --skip-wav -k {toneShift} -m -t";
+                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{wavPath}\" \"{modelDir}\" --skip-f0 --skip-melspec --skip-wav -n {numThreads} -f {toneShift} -m -t";
                 } else {
                     Log.Error($"Unsupported NEUTRINO version: {this.singer.singerVersion}");
                     return;
