@@ -175,7 +175,8 @@ namespace OpenUtau.Core.Neutrino {
                 string ArgParam = string.Empty;
                 if (this.singer.singerVersion.StartsWith("v2")) {
                     // v2.x 通用（v2.3、v2.7 等）
-                    ArgParam = $"{fullScorePath} {monoTimingPath} {f0Path} {melspecPath} {modelDir} -a -k {toneShift} -d 3 -n 1 -p {numThreads} -m -t";
+                    // 注意：v2 的 NEUTRINO.exe 用 -o 表示线程数（不是 -p）
+                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -k {toneShift} -d 3 -n 1 -o {numThreads} -m -t";
                 } else if (this.singer.singerVersion.StartsWith("v3")) {
                     // v3.x 通用（v3.0、v3.1 等）
                     //TODO: -S support model

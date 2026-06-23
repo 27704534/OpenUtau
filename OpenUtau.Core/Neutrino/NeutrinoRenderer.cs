@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using K4os.Hash.xxHash;
@@ -104,8 +105,8 @@ namespace OpenUtau.Core.Neutrino {
             //Load Dictionary
             try {
                 phoneDict.Clear();
-                LoadDict(Path.Join(basePath, "settings", "dic", confPath), this.singer.TextFileEncoding);
-                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), this.singer.TextFileEncoding);
+                LoadDict(Path.Join(basePath, "settings", "dic", confPath), Encoding.UTF8);
+                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), Encoding.UTF8);
                 // Lyrics often handled in OpenUtau
                 phoneDict.Add("R", new string[] { "pau" });
                 phoneDict.Add("-", new string[] { "pau" });
@@ -242,7 +243,8 @@ namespace OpenUtau.Core.Neutrino {
                                 }
                             }
                             if (!File.Exists(f0Path) || !File.Exists(melspecPath)) {
-                                ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -s -n 1 -o {numThreads} -k {toneShift} -m -t";
+                                // v2.x NEUTRINO.exe: 用 -o 表示线程数（不是 -p），无 -s 参数
+                                ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -n 1 -o {numThreads} -k {toneShift} -d 3 -m -t";
                                 if (existNeutrinoClient) {
                                     ProcessRunner.Run(NeutrinoClientExe, ArgParam, Log.Logger);
                                 } else {
@@ -282,7 +284,8 @@ namespace OpenUtau.Core.Neutrino {
                             }
                         } else {
                             if (!File.Exists(f0Path) || !File.Exists(mgcPath) || !File.Exists(bapPath)) {
-                                ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -w \"{mgcPath}\" \"{bapPath}\" -s -n 1 -o {numThreads} -k {toneShift} -m -t";
+                                // v2.x NEUTRINO.exe (WORLD模式): 用 -o 表示线程数，无 -s 参数
+                                ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -w \"{mgcPath}\" \"{bapPath}\" -n 1 -o {numThreads} -k {toneShift} -d 3 -m -t";
                                 if (existNeutrinoClient) {
                                     ProcessRunner.Run(NeutrinoClientExe, ArgParam, Log.Logger);
                                 } else {
