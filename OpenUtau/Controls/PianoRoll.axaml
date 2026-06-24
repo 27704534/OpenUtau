@@ -538,6 +538,7 @@
             </Button>
           </StackPanel>
         </Border>
+        <Border Grid.Column="3" Background="Transparent" PointerPressed="OnToolbarPointerPressed"/>
         <Border Grid.Column="4">
           <StackPanel Orientation="Horizontal">
             <ToggleButton Classes="toolbar" Margin="0" Padding="1" Height="20" Width="20" IsChecked="{Binding NotesViewModel.ShowNoteParams}"
@@ -553,6 +554,23 @@
                 </Path>
               </Grid>
             </ToggleButton>
+            <!--
+  占位元素 / Spacer Element
+  =========================
+  中文：参数面板收起时显示，展开时隐藏。
+       作用是把参数面板按钮往左挤 20px，空出最右边的位置，
+       让浮动的关闭按钮可以始终固定在最右上角而不重叠。
+       设计原因：关闭按钮位置固定符合 Windows 肌肉记忆，
+                但参数面板按钮需要随面板开合移动。
+                面板按钮的微小位移用户察觉不到，但关闭按钮动了就很突兀。
+
+  EN: Visible when note properties panel is collapsed, hidden when expanded.
+      Pushes the panel toggle button 20px to the left, reserving the rightmost
+      space for the floating close button to stay fixed without overlap.
+      Design rationale: A fixed close button follows Windows muscle memory,
+                       while the panel button's minor shift is imperceptible.
+-->
+            <Border Width="20" IsVisible="{Binding !NotesViewModel.ShowNoteParams}"/>
           </StackPanel>
         </Border>
       </Grid>
@@ -625,6 +643,33 @@
               Background="{DynamicResource SystemRegionBrush}" Padding="0">
         <c:NotePropertiesControl/>
       </Border>
+
+      <!--
+  关闭钢琴卷帘按钮 / Hide Piano Roll Button
+  ===========================================
+  中文：始终浮动在最右上角，位置固定不动。
+       为什么不放在工具栏里？因为工具栏会随参数面板开合而变窄，按钮会跟着左移，
+       而关闭按钮固定在右上角更符合 Windows 用户的肌肉记忆，也更显眼。
+       注意：必须定义在参数面板之后，才能浮在最上层不被遮挡。
+
+  EN: Always floats at the top-right corner, position is fixed.
+      Why not in toolbar? The toolbar narrows when panel toggles, causing buttons
+      to shift left. A fixed top-right close button matches Windows muscle memory
+      and is more prominent.
+      NOTE: Must be defined AFTER the panel to render on top (z-order).
+-->
+      <ToggleButton x:Name="HidePianoRollButton"
+                    Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
+                    Classes="toolbar" Margin="0,2,4,0"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Height="20" Width="20" Padding="1"
+                    Click="OnMenuHidePianoRoll"
+                    IsVisible="{Binding !Preferences.Default.DetachPianoRoll}"
+                    ToolTip.Tip="{DynamicResource pianoroll.menu.view.pianoroll.hide}">
+        <Grid Width="18" Height="18">
+          <Path Stroke="{DynamicResource SystemControlForegroundBaseHighBrush}" StrokeThickness="1" Data="M 4 4 L 14 14 M 14 4 L 4 14"/>
+        </Grid>
+      </ToggleButton>
 
       <Border Grid.Row="2" Grid.RowSpan="2" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
               BoxShadow="inset 0 0 5 1 #3F000000" ClipToBounds="True" IsHitTestVisible="False">
