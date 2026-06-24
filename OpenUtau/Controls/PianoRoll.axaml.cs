@@ -352,6 +352,9 @@ namespace OpenUtau.App.Controls {
         }
 
         void OnMenuHidePianoRoll(object sender, RoutedEventArgs args) {
+            if (Preferences.Default.DetachPianoRoll && MainWindow != null) {
+                MainWindow.SetPianoRollAttachment();
+            }
             if (RootWindow.DataContext is MainWindowViewModel mwvm) {
                 mwvm.ShowPianoRoll = false;
             } else {
