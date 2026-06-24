@@ -349,6 +349,7 @@ namespace OpenUtau.App.Controls {
         void OnMenuDetachPianoRoll(object sender, RoutedEventArgs args) {
             MainWindow?.SetPianoRollAttachment();
             ViewModel.RaisePropertyChanged(nameof(ViewModel.PianoRollDetached));
+            ViewModel.RaisePropertyChanged(nameof(ViewModel.HideMenuItemVisible));
         }
 
         void OnMenuHidePianoRoll(object sender, RoutedEventArgs args) {
