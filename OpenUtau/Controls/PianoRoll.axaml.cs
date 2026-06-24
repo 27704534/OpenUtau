@@ -352,6 +352,11 @@ namespace OpenUtau.App.Controls {
         }
 
         void OnMenuHidePianoRoll(object sender, RoutedEventArgs args) {
+            // 新增：如果当前是Detach状态，先切换回Embedded模式
+            if (Preferences.Default.DetachPianoRoll && MainWindow != null) {
+                MainWindow.SetPianoRollAttachment();  // 这会设置 DetachPianoRoll = false
+            }
+            // 然后再隐藏
             if (RootWindow.DataContext is MainWindowViewModel mwvm) {
                 mwvm.ShowPianoRoll = false;
             } else {
