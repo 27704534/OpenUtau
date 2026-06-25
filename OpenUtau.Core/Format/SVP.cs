@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenUtau.Core.Ustx;
 using OpenUtau.Core;
+using Serilog;
 
 namespace OpenUtau.Core.Format {
     // Synthv Studio SVR2 (SV1)
@@ -40,18 +41,24 @@ namespace OpenUtau.Core.Format {
 
             double blicksPerTick = 705600000.0 / project.resolution;
 
-            project.timeSignatures = svpProject.time?.meter?.Select(m => new UTimeSignature(m.index, m.numerator, m.denominator)).ToList() ?? new List<UTimeSignature> { new UTimeSignature(0, 4, 4) };
-            project.tempos = svpProject.time?.tempo?.Select(t => new UTempo((int)Math.Round(t.position / blicksPerTick), t.bpm)).ToList() ?? new List<UTempo> { new UTempo(0, 120) };
-
+                                   project.timeSignatures = svpProject.time?.meter?.Select(m => new UTimeSignature(Math.Max(0, m.index), m.numerator, m.denominator)).ToList() ?? new List<UTimeSignature> { new UTimeSignature(0, 4, 4) };
+            project.tempos = svpProject.time?.tempo?.Select(t => new UTempo(Math.Max(0, (int)Math.Round(t.position / blicksPerTick)), t.bpm)).ToList() ?? new List<UTempo> { new UTempo(0, 120) };
             var timeAxis = new TimeAxis();
             timeAxis.BuildSegments(project);
 
-            var libraryGroups = new Dictionary<string, SVPGroup>();
+                        var libraryGroups = new Dictionary<string, SVPGroup>();
             if (svpProject.library != null) {
                 foreach (var group in svpProject.library) {
                     if (!string.IsNullOrEmpty(group.uuid)) libraryGroups[group.uuid] = group;
                 }
             }
+            // ===== 新增：处理 groups 字段 =====
+            if (svpProject.groups != null) {
+                foreach (var group in svpProject.groups) {
+                    if (!string.IsNullOrEmpty(group.uuid)) libraryGroups[group.uuid] = group;
+                }
+            }
+            // ================================
 
             foreach (var svpTrack in svpProject.tracks ?? new List<SVPTrack>()) {
                 string singerName = "";
@@ -64,9 +71,46 @@ namespace OpenUtau.Core.Format {
                     Singer = USinger.CreateMissing("")
                 };
 
-                var allRefs = svpTrack.groups ?? new List<SVPMRef>();
+                                var allRefs = svpTrack.groups ?? new List<SVPMRef>();
                 if (svpTrack.mainRef != null && !allRefs.Contains(svpTrack.mainRef)) allRefs.Insert(0, svpTrack.mainRef);
 
+                // ===== 处理散音符（mainGroup） =====
+                if (svpTrack.mainGroup != null && svpTrack.mainGroup.notes?.Count > 0) {
+                    string mainGroupId = svpTrack.mainGroup.uuid;
+                    if (string.IsNullOrEmpty(mainGroupId)) {
+                        mainGroupId = "__main_group__";
+                        svpTrack.mainGroup.uuid = mainGroupId;
+                    }
+                    libraryGroups[mainGroupId] = svpTrack.mainGroup;
+                    bool hasRef = false;
+                    foreach (var r in allRefs) {
+                        if (r.groupID == mainGroupId) { hasRef = true; break; }
+                    }
+                    if (!hasRef) {
+                        allRefs.Insert(0, new SVPMRef {
+                            groupID = mainGroupId,
+                            blickOffset = 0,
+                            pitchOffset = 0,
+                            voice = svpTrack.mainRef?.voice
+                        });
+                    }
+                }
+                                // ===== 新增：转换轨道音量、声像、静音 =====
+                                if (svpTrack.mixer != null) {
+                    // 1. 音量：直接用 dB 值（两边都是 dB）
+                    //    SV 范围 -24~+24 dB，OpenUtau 范围 -24~+12 dB，超出的钳位到 +12
+                    track.Volume = Math.Min(12f, (float)svpTrack.mixer.gainDecibel);
+
+                    // 2. 声像：-1~1 转 -100~100（之前已经对了）
+                    track.Pan = (float)(svpTrack.mixer.pan * 100);
+
+                    // 3. 静音
+                    track.Mute = svpTrack.mixer.mute;
+
+                    //4.独奏
+                    track.Solo = svpTrack.mixer.solo;
+                }
+                // ==========================================
                 foreach (var reference in allRefs) {
                     if (reference == null) continue;
 
@@ -94,6 +138,7 @@ namespace OpenUtau.Core.Format {
                             trackNo = track.TrackNo
                         };
 
+                        wavePart.AfterLoad(project, track);
                         project.parts.Add(wavePart);
                         trackHasContent = true;
                         continue;
@@ -106,9 +151,12 @@ namespace OpenUtau.Core.Format {
 
                     // Group
                     SVPGroup group = null;
-                    if (!string.IsNullOrEmpty(reference.groupID) && libraryGroups.TryGetValue(reference.groupID, out var libGrp)) group = libGrp;
-                    else if (svpTrack.mainGroup != null && (reference.groupID == svpTrack.mainGroup.uuid || string.IsNullOrEmpty(reference.groupID))) group = svpTrack.mainGroup;
-
+                    if (!string.IsNullOrEmpty(reference.groupID) && libraryGroups.TryGetValue(reference.groupID, out var libGrp)) {
+                        group = libGrp;
+                    }
+                    if (group == null && svpTrack.mainGroup != null) {
+                        group = svpTrack.mainGroup;
+                    }
                     if (group == null) continue;
 
                     long startBlick = reference.blickOffset;
@@ -298,6 +346,7 @@ namespace OpenUtau.Core.Format {
             }
 
             if (project.tracks.Count == 0) project.tracks.Add(new UTrack(project) { TrackNo = 0, Singer = USinger.CreateMissing("Unknown") });
+            project.AfterLoad();//fix
             project.ValidateFull();
             return project;
         }
@@ -441,12 +490,23 @@ namespace OpenUtau.Core.Format {
             public SVPCurve toneShift { get; set; } 
         }
         private class SVPCurve { public string mode { get; set; } public List<double> points { get; set; } }
+        // ===== 新增：轨道混音器参数 =====
+        private class SVPMixer {
+            public double gainDecibel { get; set; }
+            public double pan { get; set; }
+            public bool mute { get; set; }
+            public bool solo { get; set; }
+            public bool display { get; set; }
+        }
         private class SVPTrack {
             public string name { get; set; }
             public SVPParameters parameters { get; set; } 
             public SVPGroup mainGroup { get; set; }
             public SVPMRef mainRef { get; set; }
             public List<SVPMRef> groups { get; set; }
+            // ===== 新增 =====
+            public SVPMixer mixer { get; set; }
+            // ================
         }
         private class SVPMRef {
             public string groupID { get; set; }
@@ -547,9 +607,47 @@ namespace OpenUtau.Core.Format {
                     Singer = USinger.CreateMissing("")
                 };
 
-                var allRefs = svpTrack.groups ?? new List<SVPMRef>();
+                                var allRefs = svpTrack.groups ?? new List<SVPMRef>();
                 if (svpTrack.mainRef != null && !allRefs.Contains(svpTrack.mainRef)) allRefs.Insert(0, svpTrack.mainRef);
-                if (svpTrack.mainGroupSV2 != null && !allRefs.Contains(svpTrack.mainGroupSV2)) allRefs.Insert(0, svpTrack.mainGroupSV2);
+
+                // ===== 处理散音符（mainGroup） =====
+                if (svpTrack.mainGroup != null && svpTrack.mainGroup.notes?.Count > 0) {
+                    string mainGroupId = svpTrack.mainGroup.uuid;
+                    if (string.IsNullOrEmpty(mainGroupId)) {
+                        mainGroupId = "__main_group__";
+                        svpTrack.mainGroup.uuid = mainGroupId;
+                    }
+                    libraryGroups[mainGroupId] = svpTrack.mainGroup;
+                    bool hasRef = false;
+                    foreach (var r in allRefs) {
+                        if (r.groupID == mainGroupId) { hasRef = true; break; }
+                    }
+                    if (!hasRef) {
+                        allRefs.Insert(0, new SVPMRef {
+                            groupID = mainGroupId,
+                            blickOffset = 0,
+                            pitchOffset = 0,
+                            voice = svpTrack.mainRef?.voice
+                        });
+                    }
+                }
+                // ==================================
+                               // ===== 新增：转换轨道音量、声像、静音 =====
+                                if (svpTrack.mixer != null) {
+                    // 1. 音量：直接用 dB 值（两边都是 dB）
+                    //    SV 范围 -24~+24 dB，OpenUtau 范围 -24~+12 dB，超出的钳位到 +12
+                    track.Volume = Math.Min(12f, (float)svpTrack.mixer.gainDecibel);
+
+                    // 2. 声像：-1~1 转 -100~100（之前已经对了）
+                    track.Pan = (float)(svpTrack.mixer.pan * 100);
+
+                    // 3. 静音
+                    track.Mute = svpTrack.mixer.mute;
+
+                    //4.独奏
+                    track.Solo = svpTrack.mixer.solo;
+                }
+                // ==========================================
 
                 foreach (var reference in allRefs) {
                     if (reference == null) continue;
@@ -577,6 +675,7 @@ namespace OpenUtau.Core.Format {
                             Duration = durTick,
                             trackNo = track.TrackNo
                         };
+                        wavePart.AfterLoad(project, track);
                         project.parts.Add(wavePart);
                         trackHasContent = true;
                         continue;
@@ -796,6 +895,7 @@ namespace OpenUtau.Core.Format {
             }
 
             if (project.tracks.Count == 0) project.tracks.Add(new UTrack(project) { TrackNo = 0, Singer = USinger.CreateMissing("Unknown") });
+            project.AfterLoad();//fix
             project.ValidateFull();
             return project;
         }
@@ -961,6 +1061,14 @@ namespace OpenUtau.Core.Format {
             public SVPCurve pitchDelta, loudness, tension, breathiness, gender, voicing, toneShift, mouthOpening;
         }
         private class SVPCurve { public string mode { get; set; } public List<double> points { get; set; } }
+        // ===== 新增：轨道混音器参数 =====
+        private class SVPMixer {
+            public double gainDecibel { get; set; }
+            public double pan { get; set; }
+            public bool mute { get; set; }
+            public bool solo { get; set; }
+            public bool display { get; set; }
+        }
         private class SVPTrack {
             public string name { get; set; }
             public SVPParameters parameters { get; set; }
@@ -968,6 +1076,9 @@ namespace OpenUtau.Core.Format {
             public SVPMRef mainRef { get; set; }
             public List<SVPMRef> groups { get; set; }
             public SVPMRef mainGroupSV2 { get; set; }
+            // ===== 新增 =====
+            public SVPMixer mixer { get; set; }
+            // ================
         }
         private class SVPMRef {
             public string groupID { get; set; }
