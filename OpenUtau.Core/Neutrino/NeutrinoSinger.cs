@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -46,6 +46,7 @@ namespace OpenUtau.Core.Neutrino {
         public byte[] avatarData;
         public ulong voicebankNameHash;
         public string singerVersion = string.Empty;
+        public string modelDir = string.Empty;
 
         public NeutrinoSinger(Voicebank voicebank) {
             this.voicebank = voicebank;
@@ -80,15 +81,30 @@ namespace OpenUtau.Core.Neutrino {
             subbanks.Clear();
 
             string infoPath = Path.Join(Location, "info.toml");
-            if (File.Exists(infoPath)) {
-                var info = TomlData.Load(infoPath);
-                info.TryGetValue("acoustic", "version", out object? version);
-                if (version != null) {
-                    singerVersion = version.ToString() ?? string.Empty;
+            if (!File.Exists(infoPath)) {
+                var subDirs = Directory.GetDirectories(Location);
+                foreach (var subDir in subDirs) {
+                    var subInfoPath = Path.Join(subDir, "info.toml");
+                    if (File.Exists(subInfoPath)) {
+                        infoPath = subInfoPath;
+                        break;
+                    }
                 }
-                info.TryGetValue("", "version", out object? version_);
-                if (version_ != null) {
-                    singerVersion = version_.ToString() ?? string.Empty;
+            }
+            if (File.Exists(infoPath)) {
+                modelDir = Path.GetDirectoryName(infoPath) ?? Location;
+                var info = TomlData.Load(infoPath);
+                // 优先级1：v3.x 格式 - 根级 version
+                info.TryGetValue("", "version", out object? rootVersion);
+                if (rootVersion != null) {
+                    singerVersion = rootVersion.ToString() ?? string.Empty;
+                }
+                // 优先级2：v2.x 格式 - [acoustic].version
+                else {
+                    info.TryGetValue("acoustic", "version", out object? acousticVersion);
+                    if (acousticVersion != null) {
+                        singerVersion = acousticVersion.ToString() ?? string.Empty;
+                    }
                 }
             }
 
@@ -107,9 +123,21 @@ namespace OpenUtau.Core.Neutrino {
             try {
                 string basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO");
                 if (!Directory.Exists(basePath)) {
-                    if (singerVersion.StartsWith("v2.7")) {
-                        basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
-                    } else if (singerVersion.StartsWith("v3") && !singerVersion.StartsWith("v3.1")) {
+                    // v2.x 通用（v2.3、v2.7 等都走这里）
+                    if (singerVersion.StartsWith("v2")) {
+                        string v2Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v2");
+                        if (Directory.Exists(v2Path)) {
+                            basePath = v2Path;
+                        } else {
+                            // fallback：兼容旧的 v27 目录名
+                            string v27Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
+                            if (Directory.Exists(v27Path)) {
+                                basePath = v27Path;
+                            }
+                        }
+                    }
+                    // v3.x 通用（v3.0、v3.1 等都走这里）
+                    else if (singerVersion.StartsWith("v3")) {
                         basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v3");
                     }
                 }

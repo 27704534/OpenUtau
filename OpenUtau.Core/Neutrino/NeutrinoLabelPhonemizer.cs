@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using OpenUtau.Api;
 using OpenUtau.Core.Hts;
 using OpenUtau.Core.Ustx;
@@ -31,17 +32,29 @@ namespace OpenUtau.Core.Neutrino {
             tablePath = "japanese.utf_8.table";
             string basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO");
             if (!Directory.Exists(basePath)) {
-                if (this.singer.singerVersion.StartsWith("v2.7")) {
-                    basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
-                } else if (this.singer.singerVersion.StartsWith("v3") && !this.singer.singerVersion.StartsWith("v3.1")) {
+                // v2.x 通用
+                if (this.singer.singerVersion.StartsWith("v2")) {
+                    string v2Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v2");
+                    if (Directory.Exists(v2Path)) {
+                        basePath = v2Path;
+                    } else {
+                        // fallback：兼容旧的 v27 目录名
+                        string v27Path = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v27");
+                        if (Directory.Exists(v27Path)) {
+                            basePath = v27Path;
+                        }
+                    }
+                }
+                // v3.x 通用
+                else if (this.singer.singerVersion.StartsWith("v3")) {
                     basePath = Path.Join(PathManager.Inst.DependencyPath, "NEUTRINO_v3");
                 }
             }
             //Load Dictionary
             try {
                 phoneDict.Clear();
-                LoadDict(Path.Join(basePath, "settings", "dic", confPath), singer.TextFileEncoding);
-                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), singer.TextFileEncoding);
+                LoadDict(Path.Join(basePath, "settings", "dic", confPath), Encoding.UTF8);
+                LoadDict(Path.Join(basePath, "settings", "dic", tablePath), Encoding.UTF8);
                 // Lyrics often handled in OpenUtau
                 phoneDict.Add("R", new string[] { "pau" });
                 phoneDict.Add("-", new string[] { "pau" });
@@ -66,12 +79,15 @@ namespace OpenUtau.Core.Neutrino {
         protected IG2p LoadG2p() {
             var g2ps = new List<IG2p>();
             var builder = G2pDictionary.NewBuilder();
+            if (!phoneDict.ContainsKey("VOWELS") || !phoneDict.ContainsKey("SILENCES")) {
+                return new G2pFallbacks(g2ps.ToArray());
+            }
             vowels.AddRange(phoneDict["VOWELS"]);
-            breaks.AddRange(phoneDict["BREAK"]);
-            pauses.AddRange(phoneDict["PAUSES"]);
+            breaks.AddRange(phoneDict.GetValueOrDefault("BREAK", Array.Empty<string>()));
+            pauses.AddRange(phoneDict.GetValueOrDefault("PAUSES", Array.Empty<string>()));
             silences.AddRange(phoneDict["SILENCES"]);
-            consonants.AddRange(phoneDict["PHONEME_CL"]);
-            macronLyrics.AddRange(phoneDict["MACRON"]);
+            consonants.AddRange(phoneDict.GetValueOrDefault("PHONEME_CL", Array.Empty<string>()));
+            macronLyrics.AddRange(phoneDict.GetValueOrDefault("MACRON", Array.Empty<string>()));
             foreach (var dict in phoneDict.Values) {
                 foreach (var phoneme in dict) {
                     if (!consonants.Contains(phoneme) && !vowels.Contains(phoneme) &&
@@ -88,12 +104,12 @@ namespace OpenUtau.Core.Neutrino {
             }
             foreach (var entry in phoneDict.Keys) {
                 builder.AddEntry(entry, phoneDict[entry]);
-                foreach (var reduction in phoneDict["VOWEL_REDUCTION"]) {
+                foreach (var reduction in phoneDict.GetValueOrDefault("VOWEL_REDUCTION", Array.Empty<string>())) {
                     var phonemes = phoneDict[entry].Except(vowels).ToList();
                     if (phonemes.Count == 0) continue;
                     builder.AddEntry(entry + reduction, phonemes);
                 }
-                foreach (var macron in phoneDict["MACRON"]) {
+                foreach (var macron in phoneDict.GetValueOrDefault("MACRON", Array.Empty<string>())) {
                     var addPhonemes = phoneDict[entry].Where(x => vowels.Contains(x)).ToList();
                     if (addPhonemes.Count == 0) continue;
                     var phonemes = phoneDict[entry].ToList();
@@ -107,6 +123,9 @@ namespace OpenUtau.Core.Neutrino {
         }
 
         protected override Note[][] PhraseAdjustments(Note[][] phrese) {
+            if (g2p == null || !phoneDict.ContainsKey("MACRON")) {
+                return phrese;
+            }
             for (int i = 0; i < phrese.Length; i++) {
                 var lyric = phrese[i][0].lyric;
                 if (phoneDict["MACRON"].Contains(lyric) && (i > 0)) {
@@ -149,16 +168,19 @@ namespace OpenUtau.Core.Neutrino {
                 string f0Path = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.f0");
                 string melspecPath = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.melspec");
                 string wavPath = Path.Join(htstmpPath, $"{voicebankNameHash}_tmp.wav");
-                string modelDir = this.singer.Location + "/";
+                string modelDir = this.singer.modelDir + "/";
                 var attr = phrase[0][0].phonemeAttributes?.FirstOrDefault(attr => attr.index == 0) ?? default;
                 int toneShift = attr.toneShift;
                 int numThreads = Preferences.Default.NumRenderThreads;
                 string ArgParam = string.Empty;
-                if (this.singer.singerVersion.StartsWith("v2.7")) {
-                    ArgParam = $"{fullScorePath} {monoTimingPath} {f0Path} {melspecPath} {modelDir} -a -k {toneShift} -d 3 -n 1 -p {numThreads} -m -t";
-                } else if (this.singer.singerVersion.StartsWith("v3") && !this.singer.singerVersion.StartsWith("v3.1")) {
+                if (this.singer.singerVersion.StartsWith("v2")) {
+                    // v2.x 通用（v2.3、v2.7 等）
+                    // 注意：v2 的 NEUTRINO.exe 用 -o 表示线程数（不是 -p）
+                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{modelDir}\" -k {toneShift} -d 3 -n 1 -o {numThreads} -m -t";
+                } else if (this.singer.singerVersion.StartsWith("v3")) {
+                    // v3.x 通用（v3.0、v3.1 等）
                     //TODO: -S support model
-                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{wavPath}\" \"{modelDir}\" --skip-f0 --skip-melspec --skip-wav -k {toneShift} -m -t";
+                    ArgParam = $"\"{fullScorePath}\" \"{monoTimingPath}\" \"{f0Path}\" \"{melspecPath}\" \"{wavPath}\" \"{modelDir}\" --skip-f0 --skip-melspec --skip-wav -n {numThreads} -f {toneShift} -m -t";
                 } else {
                     Log.Error($"Unsupported NEUTRINO version: {this.singer.singerVersion}");
                     return;
