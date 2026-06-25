@@ -11,6 +11,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using OpenUtau.App.ViewModels;
 using OpenUtau.App.Views;
 using OpenUtau.Core;
@@ -349,12 +350,25 @@ namespace OpenUtau.App.Controls {
         void OnMenuDetachPianoRoll(object sender, RoutedEventArgs args) {
             MainWindow?.SetPianoRollAttachment();
             ViewModel.RaisePropertyChanged(nameof(ViewModel.PianoRollDetached));
+            // 延迟通知，等窗口切换完成后再更新，避免切换过程中触发 UI 更新导致崩溃
+            Dispatcher.UIThread.Post(() => {
+                ViewModel.RaisePropertyChanged(nameof(ViewModel.HideMenuItemVisible));
+            });
         }
 
         void OnMenuHidePianoRoll(object sender, RoutedEventArgs args) {
-            if (Preferences.Default.DetachPianoRoll && MainWindow != null) {
-                MainWindow.SetPianoRollAttachment();
-            }
+            // Reset ToggleButton checked state / 重置 ToggleButton 的 checked 状态
+            // Reason / 原因:
+            //   ToggleButton keeps IsChecked=true after click, causing darker background.
+            //   But this close button is a one-shot action, not a state toggle.
+            //   So we manually reset it to false immediately after click.
+            //   Since piano roll hides instantly, users never see this momentary state change.
+            //
+            // 详细说明：
+            //   ToggleButton 点击后会保持 IsChecked=true，导致底纹变深。
+            //   但关闭按钮是一次性操作，不应该保持状态，所以手动重置为 false。
+            //   因为点击后钢琴卷帘立即隐藏，用户看不到这个瞬间的状态变化。
+            HidePianoRollButton.IsChecked = false;
             if (RootWindow.DataContext is MainWindowViewModel mwvm) {
                 mwvm.ShowPianoRoll = false;
             } else {
@@ -363,6 +377,24 @@ namespace OpenUtau.App.Controls {
         }
 
         // Edit Tools
+        private long _lastToolbarClickTime = 0;
+        private const long DoubleClickThreshold = 300; // 毫秒
+
+        void OnToolbarPointerPressed(object sender, PointerPressedEventArgs args) {
+            // 双击工具栏空白处关闭钢琴卷帘（仅嵌入模式生效）
+            if (!args.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+            long now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            if (now - _lastToolbarClickTime < DoubleClickThreshold) {
+                // 双击
+                if (RootWindow.DataContext is MainWindowViewModel mwvm) {
+                    mwvm.ShowPianoRoll = false;
+                }
+                // 分离模式下不响应，保持和原来一模一样
+            }
+            _lastToolbarClickTime = now;
+        }
+
         private CancellationTokenSource? _longPressCts;
         private async void OnToolButtonPointerPressed(object? sender, PointerPressedEventArgs args) {
             if (!args.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
