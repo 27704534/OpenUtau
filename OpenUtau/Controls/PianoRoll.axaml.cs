@@ -237,6 +237,14 @@ namespace OpenUtau.App.Controls {
                     }
                 });
 
+            MessageBus.Current.Listen<PianorollRefreshEvent>()
+                .Subscribe(e => {
+                    if(e.refreshItem == "Attachment") {
+                        MainWindow?.SetPianoRollAttachment();
+                        ViewModel.RaisePropertyChanged(nameof(ViewModel.PianoRollDetached));
+                    }
+                });
+
             DocManager.Inst.AddSubscriber(this);
         }
 
@@ -348,8 +356,9 @@ namespace OpenUtau.App.Controls {
         }
 
         void OnMenuDetachPianoRoll(object sender, RoutedEventArgs args) {
-            MainWindow?.SetPianoRollAttachment();
-            ViewModel.RaisePropertyChanged(nameof(ViewModel.PianoRollDetached));
+            Preferences.Default.DetachPianoRoll ^= true;
+            Preferences.Save();
+            MessageBus.Current.SendMessage(new PianorollRefreshEvent("Attachment"));
             Dispatcher.UIThread.Post(() => {
                 ViewModel.RaisePropertyChanged(nameof(ViewModel.HideMenuItemVisible));
             });
