@@ -296,7 +296,7 @@
                   <CheckBox IsChecked="{Binding ShowGhostNotes}" />
                 </MenuItem.Icon>
               </MenuItem>
-              <MenuItem Header="{DynamicResource pianoroll.menu.view.detachpianoroll}" Click="OnMenuDetachPianoRoll">
+              <MenuItem Header="{DynamicResource prefs.appearance.detachpianoroll}" Click="OnMenuDetachPianoRoll">
                 <MenuItem.Icon>
                   <CheckBox IsChecked="{Binding PianoRollDetached}" />
                 </MenuItem.Icon>
