@@ -365,6 +365,7 @@ namespace OpenUtau.Core.Format {
                 project.tracks.Add(new UTrack(project) { TrackNo = 0, Singer = USinger.CreateMissing("Unknown") });
             }
 
+            project.AfterLoad();
             project.ValidateFull();
             return project;
         }
